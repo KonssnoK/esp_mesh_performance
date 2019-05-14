@@ -50,3 +50,9 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+mesh_server/\.settings/
+
+mesh_client/\.settings/
+mesh_client/build/
+mesh_server/build/
