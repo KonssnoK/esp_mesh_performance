@@ -23,6 +23,9 @@ In each folder execute:
 - make flash
 - make monitor
 
+Notes:
+- ESP generates 2 MAC address per device -> STA MAC and AP MAC. AP MAC is always STA MAC + 1
+
 Example output:
 ```W (68716) mesh_root: Layer 0 means unknown! ME(3305)
 W (68716) mesh_root: layer 0 (0<-3304)
