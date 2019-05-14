@@ -24,7 +24,7 @@ In each folder execute:
 - make monitor
 
 Example output:
-'''W (68716) mesh_root: Layer 0 means unknown! ME(3305)
+```W (68716) mesh_root: Layer 0 means unknown! ME(3305)
 W (68716) mesh_root: layer 0 (0<-3304)
 W (68716) mesh_root: layer 2 (3305<-387C) (3305<-2ECC) (3305<-3120) (3305<-2ECC) (3305<-3120)
 W (68726) mesh_root: layer 3 (387D<-4620)
@@ -48,4 +48,4 @@ I (73696) mesh_root: 4620: RTT 86. Elapsed 419ms
 I (74036) mesh_root: 40C0: RTT 85. Elapsed 763ms
 I (74046) mesh_root: 38FC: RTT 84. Elapsed 777ms
 I (75586) mesh_root: 2ECC: RTT 93. Elapsed 7ms
-'''
+```
