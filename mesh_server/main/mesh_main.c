@@ -309,23 +309,32 @@ void mesh_event_handler(mesh_event_t event)
 			event.info.routing_table.rt_size_change,
 			event.info.routing_table.rt_size_new);
 
-		
-
+		//Since the event does not give a list of the new devices we have to check ALL of them :(		
 		esp_mesh_get_routing_table((mesh_addr_t *)&route_table,
 			CONFIG_MESH_ROUTE_TABLE_SIZE * 6, &route_table_size);
 
 		for (int j = 0; j < route_table_size; ++j) {
-			//Add node
-			for (int i = 0; i < MAX_DEVICES; ++i) {
+			//Add node, if needed
+			int i;
+			for (i = 0; i < MAX_DEVICES; ++i) {
+				//We don't trust callback to be called only for new nodes. 
+				//If we already have the device in the map, we use that one
 				if (_my_network[i].mac_coded == MAC_CODE(route_table[j].addr)) {
-					_my_network[i].exists = true;
+					_my_network[i].exists = true;//Entry is active from here
 					break;
-				} else if (!_my_network[i].exists) {
-					_my_network[i].mac_coded = MAC_CODE(route_table[j].addr);
-
-					_my_network[i].layer = 0;
-					_my_network[i].exists = true;
-					break;
+				}
+			}
+			//If the device mac was not found in the list
+			if (i >= MAX_DEVICES) {
+				for (i = 0; i < MAX_DEVICES; ++i) {
+					//Get the first free slot and set it up
+					if (!_my_network[i].exists) {
+						//Create entry
+						_my_network[i].mac_coded = MAC_CODE(route_table[j].addr);
+						_my_network[i].layer = 0;
+						_my_network[i].exists = true;//Entry is active from here
+						break;
+					}
 				}
 			}
 		}
@@ -336,6 +345,7 @@ void mesh_event_handler(mesh_event_t event)
 			event.info.routing_table.rt_size_change,
 			event.info.routing_table.rt_size_new);
 
+		//Since the event does not give a list of the removed devices we have to check ALL of them :(
 		esp_mesh_get_routing_table((mesh_addr_t *)&route_table,
 			CONFIG_MESH_ROUTE_TABLE_SIZE * 6, &route_table_size);
 
@@ -346,17 +356,19 @@ void mesh_event_handler(mesh_event_t event)
 			found = false;
 
 			if (!_my_network[i].exists)
-				continue;
+				continue;//Skip inactive slots
 
 			//Search for the mac in the routing table
 			for (int j = 0; j < route_table_size; ++j) {
 				if (_my_network[i].mac_coded == MAC_CODE(route_table[j].addr)) {
 					found = true;
-					break;
+					break;//uniqueness is guaranteed in the add function
 				}
 			}
-			if (!found) {
+			if (found) {
+				//Reset the slot
 				_my_network[i].exists = false;
+				_my_network[i].mac_coded = 0;
 			}
 		}
 
