@@ -50,6 +50,7 @@ typedef struct {
 	//Spefic payload
 	uint8_t layer;
 	uint8_t parent[MAC6_SIZE];
+	int8_t rssi;
 } payload_t;
 
 static uint8_t _my_macSTA[MAC6_SIZE] = { 0 };
@@ -90,6 +91,8 @@ void esp_mesh_p2p_rx_main(void *arg)
 	int flag = 0;
 	dataRX.data = rx_buf;
 	dataRX.size = RX_SIZE;
+
+	wifi_ap_record_t apr;
 
 	mesh_data_t dataTX;
 	dataTX.data = tx_buf;
@@ -134,6 +137,9 @@ void esp_mesh_p2p_rx_main(void *arg)
 		p->ssc = htonl(ssc);
 		p->layer = (uint8_t)mesh_layer;
 		memcpy(p->parent, mesh_parent_addr.addr, MAC6_SIZE);
+		ESP_ERROR_CHECK(esp_wifi_sta_get_ap_info(&apr)); //Result also RSSI data
+		p->rssi = apr.rssi;
+		
 		dataTX.size = sizeof(payload_t);
 
 		//Answer back to the root

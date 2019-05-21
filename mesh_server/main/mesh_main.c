@@ -53,6 +53,7 @@ typedef struct {
 	//Spefic payload
 	uint8_t layer;
 	uint8_t parent[MAC6_SIZE];
+	int8_t rssi;
 } payload_t;
 
 typedef struct rtt {
@@ -70,6 +71,7 @@ typedef struct {
 	uint8_t layer;
 	uint16_t mac_coded;
 	uint16_t parent_coded;
+	int8_t rssi;
 	bool exists;
 } children_t;
 
@@ -171,8 +173,8 @@ void esp_mesh_p2p_tx_main(void *arg)
 				for(int j = 0; j < MAX_DEVICES; ++j){
 					//If this is the right layer and the node is active
 					if(_my_network[j].exists && (_my_network[j].layer == i)){
-						idx += sprintf(&_the_string[idx], "(%X<-%X) ", 
-							_my_network[j].parent_coded, _my_network[j].mac_coded);
+						idx += sprintf(&_the_string[idx], "(%X<-%X[%d]) ", 
+							_my_network[j].parent_coded, _my_network[j].mac_coded, _my_network[j].rssi);
 					}
 				}
 				//Terminate string
@@ -222,13 +224,19 @@ void esp_mesh_p2p_rx_main(void *arg)
 
 		/* extract send count */
 		if (dataRX.size < sizeof(payload_t)) {
-			ESP_LOGW(MESH_TAG, "Packet too short! %d", dataRX.size);
+			ESP_LOGW(MESH_TAG, "Packet too short from %02X%02X! %d", 
+				from.addr[4],
+				from.addr[5],
+				dataRX.size);
 			continue;
 		}
 
 		p = (payload_t*)dataRX.data;
 		if (p->pkt_id != PKT_ID_COUNTER_ANS) {
-			ESP_LOGW(MESH_TAG, "Received unexpected packet %02X", p->pkt_id);
+			ESP_LOGW(MESH_TAG, "Received unexpected packet %02X from %02X%02X",
+				p->pkt_id,
+				from.addr[4],
+				from.addr[5]);
 			continue;
 		}
 
@@ -251,6 +259,7 @@ void esp_mesh_p2p_rx_main(void *arg)
 				//Update parent and layer info
 				_my_network[i].layer = p->layer;
 				_my_network[i].parent_coded = MAC_CODE(p->parent);
+				_my_network[i].rssi = p->rssi;
 			}
 		}
 	}
