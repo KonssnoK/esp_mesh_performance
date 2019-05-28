@@ -39,26 +39,45 @@ static bool is_mesh_connected = false;
 static mesh_addr_t mesh_parent_addr = { 0 };
 static int mesh_layer = -1;
 
+//#pragma region COMMON
+
 #define MAC_MATCH(x, y) ((x[0] == y[0]) && (x[1] == y[1]) && (x[2] == y[2]) && (x[3] == y[3]) && (x[4] == y[4]) && (x[5] == y[5]))
 #define MAC6_SIZE (6)
 
+#define MAC_CODE(x) ((((uint16_t)x[4]) << 8) | x[5])
+
 #define PKT_ID_COUNTER 0x3A
 #define PKT_ID_COUNTER_ANS	0xCA
-typedef struct {
+
+typedef struct payload_head_ {
 	uint32_t ssc;
 	uint8_t pkt_id;
-	//Spefic payload
-	uint8_t layer;
-	uint8_t parent[MAC6_SIZE];
-	int8_t rssi;
-} payload_t;
+} payload_head_t;
 
-static uint8_t _my_macSTA[MAC6_SIZE] = { 0 };
-static uint8_t _my_macAP[MAC6_SIZE] = { 0 };
+typedef struct payload_node_ {
+	payload_head_t head;
+	//Spefic payload
+	uint8_t layer;				//Mesh library obtained layer
+	uint8_t parent[MAC6_SIZE];	//
+	int8_t rssi;				//RSSI of the node to the first parent
+} payload_node_t;
+
+typedef struct payload_root_ {
+	payload_head_t head;
+	//Spefic payload
+	int8_t txPwr;	//TX Power to set
+} payload_root_t;
+
+//#pragma endregion
+
 
 /*******************************************************
  *                Function Declarations
  *******************************************************/
+
+static uint8_t _my_macSTA[MAC6_SIZE] = { 0 };
+static uint8_t _my_macAP[MAC6_SIZE] = { 0 };
+static int8_t _wifi_tx_pwr = 0;
 
  /*******************************************************
   *                Function Definitions
@@ -99,7 +118,8 @@ void esp_mesh_p2p_rx_main(void *arg)
 	dataTX.size = sizeof(tx_buf);
 	dataTX.proto = MESH_PROTO_BIN;
 
-	payload_t* p;
+	payload_root_t* pr;
+	payload_node_t* pt;
 
 	is_running = true;
 	while (is_running) {
@@ -118,29 +138,38 @@ void esp_mesh_p2p_rx_main(void *arg)
 		recv_count++;
 
 		/* extract send count */
-		if (dataRX.size < sizeof(payload_t)) {
+		if (dataRX.size < sizeof(payload_root_t)) {
 			ESP_LOGW(MESH_TAG, "Packet too short! %d", dataRX.size);
 			continue;
 		}
 
-		p = (payload_t*)dataRX.data;
-		if (p->pkt_id != PKT_ID_COUNTER) {
-			ESP_LOGW(MESH_TAG, "Received unexpected packet %02X", p->pkt_id);
+		pr = (payload_root_t*)dataRX.data;
+		if (pr->head.pkt_id != PKT_ID_COUNTER) {
+			ESP_LOGW(MESH_TAG, "Received unexpected packet %02X", pr->head.pkt_id);
 			continue;
 		}
 
-		int ssc = ntohl(p->ssc);
+		uint32_t ssc = ntohl(pr->head.ssc);
+		int8_t txpwr = pr->txPwr;
 		ESP_LOGI(MESH_TAG, "RECV SSC %d from "MACSTR, ssc, MAC2STR(from.addr));
 
-		p = (payload_t*)dataTX.data;
-		p->pkt_id = PKT_ID_COUNTER_ANS;
-		p->ssc = htonl(ssc);
-		p->layer = (uint8_t)mesh_layer;
-		memcpy(p->parent, mesh_parent_addr.addr, MAC6_SIZE);
+		//Use payload
+		if (txpwr != _wifi_tx_pwr) {
+			//Change TX power as requested from root
+			ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(txpwr));
+			_wifi_tx_pwr = txpwr;
+		}
+		//End
+
+		pt = (payload_node_t*)dataTX.data;
+		pt->head.pkt_id = PKT_ID_COUNTER_ANS;
+		pt->head.ssc = htonl(ssc);
+		pt->layer = (uint8_t)mesh_layer;
+		memcpy(pt->parent, mesh_parent_addr.addr, MAC6_SIZE);
 		ESP_ERROR_CHECK(esp_wifi_sta_get_ap_info(&apr)); //Result also RSSI data
-		p->rssi = apr.rssi;
+		pt->rssi = apr.rssi;
 		
-		dataTX.size = sizeof(payload_t);
+		dataTX.size = sizeof(payload_node_t);
 
 		//Answer back to the root
 		err = esp_mesh_send(&from, &dataTX, MESH_DATA_P2P, NULL, 0);
@@ -347,12 +376,12 @@ void app_main(void)
 	ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_FLASH));
 	ESP_ERROR_CHECK(esp_wifi_start());
 
-	//Reduce WIFI TX power to the minimum
-	int8_t pwr;
-	ESP_ERROR_CHECK(esp_wifi_get_max_tx_power(&pwr));
-	ESP_LOGI(MESH_TAG, "WIFI power currently set to %d.", pwr);
-	pwr = 7;
-	ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(pwr));
+	////Reduce WIFI TX power to the minimum
+	//int8_t pwr;
+	//ESP_ERROR_CHECK(esp_wifi_get_max_tx_power(&pwr));
+	//ESP_LOGI(MESH_TAG, "WIFI power currently set to %d.", pwr);
+	//pwr = 7;
+	//ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(pwr));
 
 	/*  mesh initialization */
 	ESP_ERROR_CHECK(esp_mesh_init());

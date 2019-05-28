@@ -21,6 +21,20 @@
  *                Macros
  *******************************************************/
  //#define MESH_P2P_TOS_OFF
+#define WIFI_TX_PWR		20	//LOOK BELOW
+/* - [78, 127]: level0
+ * - [76, 77] : level1
+ * - [74, 75] : level2
+ * - [68, 73] : level3
+ * - [60, 67] : level4
+ * - [52, 59] : level5
+ * - [44, 51] : level5 - 2dBm
+ * - [34, 43] : level5 - 4.5dBm
+ * - [28, 33] : level5 - 6dBm
+ * - [20, 27] : level5 - 8dBm
+ * - [ 8, 19] : level5 - 11dBm
+ * - [-128, 7] : level5 - 14dBm 
+ */
 
  /*******************************************************
   *                Constants
@@ -40,6 +54,8 @@ static bool is_mesh_connected = false;
 static mesh_addr_t mesh_parent_addr;
 static int mesh_layer = -1;
 
+//#pragma region COMMON
+
 #define MAC_MATCH(x, y) ((x[0] == y[0]) && (x[1] == y[1]) && (x[2] == y[2]) && (x[3] == y[3]) && (x[4] == y[4]) && (x[5] == y[5]))
 #define MAC6_SIZE (6)
 
@@ -47,14 +63,27 @@ static int mesh_layer = -1;
 
 #define PKT_ID_COUNTER 0x3A
 #define PKT_ID_COUNTER_ANS	0xCA
+
 typedef struct {
 	uint32_t ssc;
 	uint8_t pkt_id;
+} payload_head_t;
+
+typedef struct {
+	payload_head_t head;
 	//Spefic payload
-	uint8_t layer;
-	uint8_t parent[MAC6_SIZE];
-	int8_t rssi;
-} payload_t;
+	uint8_t layer;				//Mesh library obtained layer
+	uint8_t parent[MAC6_SIZE];	//
+	int8_t rssi;				//RSSI of the node to the first parent
+} payload_node_t;
+
+typedef struct {
+	payload_head_t head;
+	//Spefic payload
+	int8_t txPwr;	//TX Power to set
+} payload_root_t;
+
+//#pragma endregion
 
 typedef struct rtt {
 	uint64_t start;
@@ -84,10 +113,10 @@ char _the_string[512] = { 0 };
  *                Function Declarations
  *******************************************************/
 
-
-static uint8_t _my_macSTA[6];
-static uint8_t _my_macAP[6];
+static uint8_t _my_macSTA[MAC6_SIZE] = { 0 };
+static uint8_t _my_macAP[MAC6_SIZE] = { 0 };
 static uint32_t _ssc_sent = 0;
+
  /*******************************************************
   *                Function Definitions
   *******************************************************/
@@ -103,7 +132,7 @@ void esp_mesh_p2p_tx_main(void *arg)
 	dataTX.size = sizeof(tx_buf);
 	dataTX.proto = MESH_PROTO_BIN;
 
-	payload_t *p;
+	payload_root_t *pt;
 	rtt_t * r;
 	uint64_t lastDrawnUS = esp_timer_get_time(); 
 	
@@ -115,8 +144,8 @@ void esp_mesh_p2p_tx_main(void *arg)
 		esp_mesh_get_routing_table((mesh_addr_t *)&route_table,
 			CONFIG_MESH_ROUTE_TABLE_SIZE * 6, &route_table_size);
 
-		p = (payload_t*)tx_buf;
-		p->pkt_id = PKT_ID_COUNTER;
+		pt = (payload_root_t*)tx_buf;
+		pt->head.pkt_id = PKT_ID_COUNTER;
 
 		//For each connected node
 		for (i = 0; i < route_table_size; i++) {
@@ -127,9 +156,9 @@ void esp_mesh_p2p_tx_main(void *arg)
 			}
 
 			_ssc_sent++;
-			p->ssc = htonl(_ssc_sent);
-
-			//ESP_LOGI(MESH_TAG, "Send to: "MACSTR, MAC2STR(route_table[i].addr));
+			pt->head.ssc = htonl(_ssc_sent);
+			pt->txPwr = WIFI_TX_PWR;
+			
 
 			err = esp_mesh_send(&route_table[i], &dataTX, MESH_DATA_P2P, NULL, 0);
 			if (err) {
@@ -203,7 +232,7 @@ void esp_mesh_p2p_rx_main(void *arg)
 	dataRX.data = rx_buf;
 	dataRX.size = RX_SIZE;
 
-	payload_t* p;
+	payload_node_t *p;
 	rtt_t* r;
 
 	is_running = true;
@@ -223,7 +252,7 @@ void esp_mesh_p2p_rx_main(void *arg)
 		recv_count++;
 
 		/* extract send count */
-		if (dataRX.size < sizeof(payload_t)) {
+		if (dataRX.size < sizeof(payload_node_t)) {
 			ESP_LOGW(MESH_TAG, "Packet too short from %02X%02X! %d", 
 				from.addr[4],
 				from.addr[5],
@@ -231,16 +260,16 @@ void esp_mesh_p2p_rx_main(void *arg)
 			continue;
 		}
 
-		p = (payload_t*)dataRX.data;
-		if (p->pkt_id != PKT_ID_COUNTER_ANS) {
+		p = (payload_node_t*)dataRX.data;
+		if (p->head.pkt_id != PKT_ID_COUNTER_ANS) {
 			ESP_LOGW(MESH_TAG, "Received unexpected packet %02X from %02X%02X",
-				p->pkt_id,
+				p->head.pkt_id,
 				from.addr[4],
 				from.addr[5]);
 			continue;
 		}
 
-		int ssc = ntohl(p->ssc);
+		int ssc = ntohl(p->head.ssc);
 		for (int i = 0; i < MAX_RTT_SENT; ++i) {
 			r = &_rounders[i];
 			if (r->id == ssc) {
@@ -529,7 +558,7 @@ void app_main(void)
 	int8_t pwr;
 	ESP_ERROR_CHECK(esp_wifi_get_max_tx_power(&pwr));
 	ESP_LOGI(MESH_TAG, "WIFI power currently set to %d.", pwr);
-	pwr = 7;
+	pwr = WIFI_TX_PWR;
 	ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(pwr));
 
 	/*  mesh initialization */
