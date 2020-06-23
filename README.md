@@ -52,3 +52,7 @@ I (74036) mesh_root: 40C0: RTT 85. Elapsed 763ms
 I (74046) mesh_root: 38FC: RTT 84. Elapsed 777ms
 I (75586) mesh_root: 2ECC: RTT 93. Elapsed 7ms
 ```
+
+
+The issues found by this code can be read here:
+https://github.com/espressif/esp-idf/issues/3472
