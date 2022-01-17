@@ -368,27 +368,27 @@ void mesh_root_routing_table_add()
     mesh_addr_t route_table[CONFIG_MESH_ROUTE_TABLE_SIZE];
     int route_table_size = 0;
 
-    //Since the event does not give a list of the new devices we have to check ALL of them :(
+    // Since the event does not give a list of the new devices we have to check ALL of them :(
     esp_mesh_get_routing_table((mesh_addr_t *)&route_table,
                                CONFIG_MESH_ROUTE_TABLE_SIZE * 6, &route_table_size);
 
     for (int j = 0; j < route_table_size; ++j) {
-        //Add node, if needed
+        // Add node, if needed
         int i;
         for (i = 0; i < MAX_DEVICES; ++i) {
-            //We don't trust callback to be called only for new nodes.
-            //If we already have the device in the map, we use that one
+            // We don't trust callback to be called only for new nodes.
+            // If we already have the device in the map, we use that one
             if (_my_network[i].mac_coded == MAC_CODE(route_table[j].addr)) {
-                _my_network[i].exists = true; //Entry is active from here
+                _my_network[i].exists = true; // Entry is active from here
                 break;
             }
         }
-        //If the device mac was not found in the list
+        // If the device mac was not found in the list
         if (i >= MAX_DEVICES) {
             for (i = 0; i < MAX_DEVICES; ++i) {
-                //Get the first free slot and set it up
+                // Get the first free slot and set it up
                 if (!_my_network[i].exists)  {
-                    //Create entry
+                    // Create entry
                     _my_network[i].mac_coded = MAC_CODE(route_table[j].addr);
                     _my_network[i].layer = 0;
                     _my_network[i].exists = true; //Entry is active from here
@@ -403,29 +403,29 @@ void mesh_root_routing_table_remove() {
     mesh_addr_t route_table[CONFIG_MESH_ROUTE_TABLE_SIZE];
     int route_table_size = 0;
 
-    //Since the event does not give a list of the removed devices we have to check ALL of them :(
+    // Since the event does not give a list of the removed devices we have to check ALL of them :(
     esp_mesh_get_routing_table((mesh_addr_t *)&route_table,
                                 CONFIG_MESH_ROUTE_TABLE_SIZE * 6, &route_table_size);
 
     bool found = false;
 
     for (int i = 0; i < MAX_DEVICES; ++i) {
-        //Remove any device that is not referenced in the routing table anymore
+        // Remove any device that is not referenced in the routing table anymore
         found = false;
 
         if (!_my_network[i].exists)
-            continue; //Skip inactive slots
+            continue; // Skip inactive slots
 
-        //Search for the mac in the routing table
+        // Search for the mac in the routing table
         for (int j = 0; j < route_table_size; ++j) {
             if (_my_network[i].mac_coded == MAC_CODE(route_table[j].addr))
             {
                 found = true;
-                break; //uniqueness is guaranteed in the add function
+                break; // uniqueness is guaranteed in the add function
             }
         }
         if (found) {
-            //Reset the slot
+            // Reset the slot
             _my_network[i].exists = false;
             _my_network[i].mac_coded = 0;
         }
