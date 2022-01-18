@@ -1,16 +1,16 @@
 # esp_mesh_performance
-ESP MESH network performance firmware for dev kit C using fixed ROOT-nodes architecture
+ESP MESH network performance firmware
 
 this code is based on the code "internal_communication" example from ESP-IDF.
 
 How does this work?
 
 There are 2 folders:
-- mesh_client
-	- Firmware to put on each single device which is not the root.
+- nodes
+	- Firmware that runs on each single device which is not the root.
 	- The firmware will just respond to any unicast packet.
-- mesh_server
-	- Where the magic happens -> Firmware to put on the ROOT device.
+- mroot
+	- Where the magic happens -> Firmware that runs on the ROOT device.
 	- ROOT needs hotspot connection to a router in order to start the mesh network
 	- Hooking to the mesh callbacks send a packet to each node in the network and wait for the answer. 
 	- Upon answer reception computes round trip time (RTT)
@@ -18,7 +18,6 @@ There are 2 folders:
 	- Show error if a packet request is not answered in ~30sec (depends on network state)
 
 To build:
-In each folder execute:
 - make menuconfig -> Set COM port + Router SSID + Password + Mesh Password
 - make flash
 - make monitor
